@@ -4,7 +4,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from .states import OrderState
-from .keyboards import main_menu, contact_kb, take_order_kb, arrived_kb, complete_kb, cancel_kb
+from .keyboards import main_menu, contact_kb, take_order_kb, arrived_kb, complete_kb
 from .db import get_user, save_user, create_order, update_order, get_order, get_driver
 from .config import GROUP_ID
 
