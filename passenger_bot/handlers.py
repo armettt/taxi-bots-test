@@ -109,6 +109,7 @@ async def take_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
     driver = await get_driver(callback.from_user.id)
 
+    # Перевірка реєстрації водія
     if not driver:
         await callback.answer("Ви не зареєстровані", show_alert=True)
         return
@@ -118,16 +119,44 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("Замовлення вже взято")
         return
 
+    # Оновлення замовлення
     await update_order(order_id, "taken", callback.from_user.id)
 
-    text = callback.message.text + "\n\n✅ Водій взяв замовлення"
+    # Дані водія
+    driver_name = driver["username"] or "Невідомо"
+    driver_phone = driver["phone"]
+    car_brand = driver["brand"] or ""
+    car_model = driver["model"] or ""
+    car_color = driver["color"] or "Невідомо"
+    car_plate = driver["plate"] or "Невідомо"
+
+    car_info = f"{car_brand} {car_model}".strip()
+
+    # Повідомлення в групі
+    text = callback.message.text + "\n\n✅ <b>Водій взяв замовлення</b>"
     await callback.message.edit_text(
         text,
         reply_markup=arrived_kb(order_id),
         parse_mode="HTML"
     )
 
-    await bot.send_message(order["client_id"], "🚖 Водій взяв ваше замовлення!")
+    # Повідомлення пасажиру з інформацією про водія
+    passenger_text = (
+        "🚖 <b>Водій взяв ваше замовлення</b>\n\n"
+        f"👤 <b>Водій:</b> {driver_name}\n"
+        f"📞 <b>Телефон:</b> <a href='tel:{driver_phone}'>{driver_phone}</a>\n"
+        f"🚗 <b>Автомобіль:</b> {car_info}\n"
+        f"🎨 <b>Колір:</b> {car_color}\n"
+        f"🔢 <b>Номер:</b> {car_plate}"
+    )
+
+    await bot.send_message(
+        order["client_id"],
+        passenger_text,
+        parse_mode="HTML",
+        disable_web_page_preview=True
+    )
+
     await callback.answer("Замовлення прийнято")
 
 
