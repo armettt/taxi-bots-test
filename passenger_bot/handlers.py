@@ -1,6 +1,6 @@
 import time
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 
 from .states import OrderState
@@ -15,11 +15,15 @@ user_active_order = {}
 callback_cooldown = {}
 
 
+# ===================== МЕНЮ =====================
+
 @router.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Використовуй меню", reply_markup=main_menu())
 
+
+# ===================== СТВОРЕННЯ ЗАМОВЛЕННЯ =====================
 
 @router.message(F.text == "Створити замовлення")
 async def create_order_start(message: Message, state: FSMContext):
@@ -82,10 +86,10 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
     )
 
     text = (
-        f"🚕 <b>Замовлення #{order_id}</b>\n"
-        f"📞 {data['phone']}\n"
-        f"📍 {data['from_loc']} → {data['to_loc']}\n"
-        f"💬 {message.text}"
+        f"<b>Замовлення №{order_id}</b>\n"
+        f"Телефон клієнта: <a href='tel:{data['phone']}'>{data['phone']}</a>\n"
+        f"Маршрут: {data['from_loc']} → {data['to_loc']}\n"
+        f"Коментар: {message.text}"
     )
 
     sent = await bot.send_message(
@@ -100,16 +104,30 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
     user_last_order_time[user_id] = now
     user_active_order[user_id] = order_id
 
-    await message.answer("Замовлення створено!", reply_markup=main_menu())
+    cancel_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text="❌ Скасувати замовлення",
+                callback_data=f"cancel_{order_id}"
+            )]
+        ]
+    )
+
+    await message.answer(
+        "Замовлення створено!",
+        reply_markup=cancel_kb
+    )
+
     await state.clear()
 
+
+# ===================== ВОДІЙ ПРИЙМАЄ ЗАМОВЛЕННЯ =====================
 
 @router.callback_query(F.data.startswith("take_"))
 async def take_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
     driver = await get_driver(callback.from_user.id)
 
-    # Перевірка реєстрації водія
     if not driver:
         await callback.answer("Ви не зареєстровані", show_alert=True)
         return
@@ -119,35 +137,38 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("Замовлення вже взято")
         return
 
-    # Оновлення замовлення
     await update_order(order_id, "taken", callback.from_user.id)
 
-    # Дані водія
     driver_name = driver["username"] or "Невідомо"
     driver_phone = driver["phone"]
     car_brand = driver["brand"] or ""
     car_model = driver["model"] or ""
     car_color = driver["color"] or "Невідомо"
     car_plate = driver["plate"] or "Невідомо"
-
     car_info = f"{car_brand} {car_model}".strip()
 
-    # Повідомлення в групі
-    text = callback.message.text + "\n\n✅ <b>Водій взяв замовлення</b>"
+    group_text = (
+        callback.message.text +
+        f"\n\nВодій: {driver_name}"
+        f"\nТелефон: {driver_phone}"
+        f"\nАвтомобіль: {car_info}"
+        f"\nКолір: {car_color}"
+        f"\nНомер: {car_plate}"
+    )
+
     await callback.message.edit_text(
-        text,
+        group_text,
         reply_markup=arrived_kb(order_id),
         parse_mode="HTML"
     )
 
-    # Повідомлення пасажиру з інформацією про водія
     passenger_text = (
-        "🚖 <b>Водій взяв ваше замовлення</b>\n\n"
-        f"👤 <b>Водій:</b> {driver_name}\n"
-        f"📞 <b>Телефон:</b> <a href='tel:{driver_phone}'>{driver_phone}</a>\n"
-        f"🚗 <b>Автомобіль:</b> {car_info}\n"
-        f"🎨 <b>Колір:</b> {car_color}\n"
-        f"🔢 <b>Номер:</b> {car_plate}"
+        "<b>Водій взяв ваше замовлення</b>\n\n"
+        f"Водій: {driver_name}\n"
+        f"Телефон: <a href='tel:{driver_phone}'>{driver_phone}</a>\n"
+        f"Автомобіль: {car_info}\n"
+        f"Колір: {car_color}\n"
+        f"Номерний знак: {car_plate}"
     )
 
     await bot.send_message(
@@ -160,6 +181,8 @@ async def take_order(callback: CallbackQuery, bot: Bot):
     await callback.answer("Замовлення прийнято")
 
 
+# ===================== ВОДІЙ ПРИБУВ =====================
+
 @router.callback_query(F.data.startswith("arrived_"))
 async def arrived_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
@@ -171,10 +194,15 @@ async def arrived_order(callback: CallbackQuery, bot: Bot):
 
     await update_order(order_id, "arrived")
 
-    await callback.message.edit_reply_markup(reply_markup=complete_kb(order_id))
-    await bot.send_message(order["client_id"], "🚖 Водій прибув!")
+    await callback.message.edit_reply_markup(
+        reply_markup=complete_kb(order_id)
+    )
+
+    await bot.send_message(order["client_id"], "Водій прибув!")
     await callback.answer("Ви прибули")
 
+
+# ===================== ЗАВЕРШЕННЯ ПОЇЗДКИ =====================
 
 @router.callback_query(F.data.startswith("complete_"))
 async def complete_order(callback: CallbackQuery, bot: Bot):
@@ -187,5 +215,55 @@ async def complete_order(callback: CallbackQuery, bot: Bot):
 
     await update_order(order_id, "completed")
     await callback.message.edit_reply_markup()
-    await bot.send_message(order["client_id"], "✅ Поїздку завершено!")
+
+    await bot.send_message(order["client_id"], "Поїздку завершено!")
+
+    user_active_order.pop(order["client_id"], None)
     await callback.answer("Поїздку завершено")
+
+
+# ===================== СКАСУВАННЯ ЗАМОВЛЕННЯ =====================
+
+@router.callback_query(F.data.startswith("cancel_"))
+async def cancel_order(callback: CallbackQuery, bot: Bot):
+    order_id = int(callback.data.split("_")[1])
+    order = await get_order(order_id)
+
+    if not order:
+        await callback.answer("Замовлення не знайдено", show_alert=True)
+        return
+
+    if callback.from_user.id != order["client_id"]:
+        await callback.answer("Це не ваше замовлення", show_alert=True)
+        return
+
+    if order["status"] not in ("waiting", "taken"):
+        await callback.answer("Замовлення не можна скасувати", show_alert=True)
+        return
+
+    await update_order(order_id, "cancelled")
+
+    user_active_order.pop(order["client_id"], None)
+
+    # Оновлення повідомлення в групі
+    try:
+        await bot.edit_message_text(
+            chat_id=GROUP_ID,
+            message_id=order["message_id"],
+            text=f"Замовлення №{order_id} скасовано клієнтом"
+        )
+    except Exception:
+        pass
+
+    # Повідомлення водію
+    if order.get("driver_id"):
+        try:
+            await bot.send_message(
+                order["driver_id"],
+                f"Замовлення №{order_id} було скасовано клієнтом."
+            )
+        except Exception:
+            pass
+
+    await callback.message.edit_text("Замовлення скасовано.")
+    await callback.answer("Замовлення скасовано")
