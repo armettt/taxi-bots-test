@@ -141,22 +141,18 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         parse_mode="HTML"
     )
 
-    driver = await get_driver(callback.from_user.id)
-    
     driver_text = (
-    f"🚖 Ваше замовлення прийнято водієм\n\n"
-    f"👨‍✈️ Водій: {driver['username'] if driver else 'Невідомо'}\n"
-    f"📞 Телефон: <a href='tel:{driver['phone']}'>{driver['phone']}</a>\n"
-    f"🚗 Авто: {driver['brand']} {driver['model']} ({driver['color']})\n"
-    f"🔢 Номер: {driver['plate']}"
+        f"🚖 Ваше замовлення прийнято водієм\n\n"
+        f"👨‍✈️ Водій: {driver.get('username', 'Невідомо')}\n"
+        f"📞 Телефон: <a href='tel:{driver['phone']}'>{driver['phone']}</a>\n"
+        f"🚗 Авто: {driver['brand']} {driver['model']} ({driver['color']})\n"
+        f"🔢 Номер: {driver['plate']}"
     )
 
-     await bot.send_message(
-    order["client_id"],
-    driver_text,
-    parse_mode="HTML"
-    )
-
+    await bot.send_message(
+        order["client_id"],
+        driver_text,
+        parse_mode="HTML"
     )
 
     await callback.answer("Прийнято")
@@ -170,7 +166,6 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
 
     user_id = callback.from_user.id
 
-    # клиент может отменить свой заказ
     if order["client_id"] != user_id and order["driver_id"] != user_id:
         await callback.answer("Немає доступу", show_alert=True)
         return
@@ -191,8 +186,7 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
 async def arrived_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
     order = await get_order(order_id)
-    driver_id = order.get("driver_id")
-    
+
     if callback.from_user.id != order["driver_id"]:
         await callback.answer("Не ваше замовлення", show_alert=True)
         return
