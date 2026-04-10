@@ -1,6 +1,7 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 
+# ---------------- MAIN MENU ----------------
 def main_menu():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -11,6 +12,7 @@ def main_menu():
     )
 
 
+# ---------------- CONTACT ----------------
 def contact_kb():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -20,25 +22,61 @@ def contact_kb():
     )
 
 
+# ---------------- DRIVER TAKE ORDER ----------------
 def take_order_kb(order_id):
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Взяти замовлення", callback_data=f"take_{order_id}")]
+            [
+                InlineKeyboardButton(
+                    text="🚖 Взяти замовлення",
+                    callback_data=f"take_{order_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Скасувати замовлення",
+                    callback_data=f"cancel_{order_id}"
+                )
+            ]
         ]
     )
 
 
+# ---------------- ARRIVED ----------------
 def arrived_kb(order_id):
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Прибув", callback_data=f"arrived_{order_id}")]
+            [
+                InlineKeyboardButton(
+                    text="📍 Прибув",
+                    callback_data=f"arrived_{order_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Скасувати замовлення",
+                    callback_data=f"cancel_{order_id}"
+                )
+            ]
         ]
     )
 
 
+# ---------------- COMPLETE ----------------
 def complete_kb(order_id):
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Завершити поїздку", callback_data=f"complete_{order_id}")]
+            [
+                InlineKeyboardButton(
+                    text="✅ Завершити поїздку",
+                    callback_data=f"complete_{order_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Скасувати замовлення",
+                    callback_data=f"cancel_{order_id}"
+                )
+            ]
         ]
     )
