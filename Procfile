@@ -1,2 +1,2 @@
-passenger: python passenger_bot/bot.py
-driver: python driver_bot/bot.py
+passenger: python -m passenger_bot.bot
+driver: python -m driver_bot.bot
