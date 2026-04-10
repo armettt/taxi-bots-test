@@ -1,8 +1,6 @@
 {
-  "build": {
-    "dockerfilePath": "Dockerfile"
-  },
+  "$schema": "https://railway.app/railway.schema.json",
   "deploy": {
-    "startCommand": "python passenger_bot/bot.py"
+    "startCommand": "python -m passenger_bot.bot"
   }
 }
