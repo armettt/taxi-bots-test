@@ -1,5 +1,3 @@
--- Таблицы для ботов
-
 CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT PRIMARY KEY,
     phone TEXT
