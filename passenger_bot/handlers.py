@@ -140,9 +140,21 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         parse_mode="HTML"
     )
 
-    await bot.send_message(
-        order["client_id"],
-        "Ваше замовлення прийнято водієм"
+    driver = await get_driver(callback.from_user.id)
+
+driver_text = (
+    f"🚖 Ваше замовлення прийнято водієм\n\n"
+    f"👨‍✈️ Водій: {driver['username'] if driver else 'Невідомо'}\n"
+    f"📞 Телефон: <a href='tel:{driver['phone']}'>{driver['phone']}</a>\n"
+    f"🚗 Авто: {driver['brand']} {driver['model']} ({driver['color']})\n"
+    f"🔢 Номер: {driver['plate']}"
+)
+
+await bot.send_message(
+    order["client_id"],
+    driver_text,
+    parse_mode="HTML"
+)
     )
 
     await callback.answer("Прийнято")
