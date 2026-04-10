@@ -190,7 +190,8 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
 async def arrived_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
     order = await get_order(order_id)
-
+    driver_id = order.get("driver_id")
+    
     if callback.from_user.id != order["driver_id"]:
         await callback.answer("Не ваше замовлення", show_alert=True)
         return
