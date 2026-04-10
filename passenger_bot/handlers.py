@@ -89,7 +89,8 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
         message.text
     )
 
-    phone_html = f'<a href="tel:{phone}">{phone}</a>'
+    phone_clean = phone.replace(" ", "").replace("-", "")
+    phone_html = f'<a href="tel:{phone_clean}">{phone}</a>'
 
     text = (
         f"Замовлення #{order_id}\n"
