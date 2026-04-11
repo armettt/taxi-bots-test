@@ -115,6 +115,51 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
     await message.answer("Замовлення створено")
     await state.clear()
 
+# ---------------- CANCEL ORDER FROM MENU ----------------
+@router.message(F.text == "Скасувати замовлення")
+async def cancel_order_from_menu(message: Message, bot: Bot):
+    user_id = message.from_user.id
+
+    # Перевіряємо, чи є активне замовлення
+    order_id = user_active_order.get(user_id)
+    if not order_id:
+        await message.answer("У вас немає активних замовлень", reply_markup=main_menu())
+        return
+
+    order = await get_order(order_id)
+    if not order:
+        await message.answer("Замовлення не знайдено", reply_markup=main_menu())
+        return
+
+    # Оновлюємо статус у базі
+    await update_order(order_id, "cancelled")
+
+    # Видаляємо з пам’яті
+    user_active_order.pop(user_id, None)
+
+    # Повідомляємо клієнта
+    await message.answer(
+        f"❌ Замовлення №{order_id} скасовано",
+        reply_markup=main_menu()
+    )
+
+    # Повідомляємо водія, якщо він вже прийняв замовлення
+    if order.get("driver_id"):
+        await bot.send_message(
+            order["driver_id"],
+            f"❌ Замовлення №{order_id} було скасовано пасажиром"
+        )
+
+    # Оновлюємо повідомлення в групі
+    if order.get("message_id"):
+        try:
+            await bot.edit_message_text(
+                chat_id=GROUP_ID,
+                message_id=order["message_id"],
+                text=f"❌ Замовлення №{order_id} скасовано"
+            )
+        except Exception:
+            pass
 
 # ---------------- TAKE ORDER ----------------
 @router.callback_query(F.data.startswith("take_"))
