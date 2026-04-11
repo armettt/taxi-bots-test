@@ -3,9 +3,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 
-from passenger_bot.handlers import router
-from passenger_bot.config import BOT_TOKEN
-
+from driver_bot.handlers import router
+from driver_bot.config import BOT_TOKEN
 
 async def main():
     bot = Bot(
