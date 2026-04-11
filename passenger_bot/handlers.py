@@ -93,13 +93,18 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
         return
 
     data = await state.get_data()
+
     phone = normalize_phone(data["phone"])
     phone_html = phone_to_html(phone)
+
+    username = message.from_user.username
+    first_name = message.from_user.first_name
+    user_identity = f"@{username}" if username else first_name
 
     order_id = await create_order(
         user_id,
         phone,
-        message.from_user.username or message.from_user.first_name,
+        user_identity,
         data["from_loc"],
         data["to_loc"],
         message.text
@@ -128,7 +133,6 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
 
     await message.answer("Замовлення створено", reply_markup=main_menu())
     await state.clear()
-
 
 # ---------------- CANCEL ORDER FROM MENU ----------------
 @router.message(F.text == "Скасувати замовлення")
