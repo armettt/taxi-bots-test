@@ -14,6 +14,21 @@ user_last_order_time = {}
 user_active_order = {}
 
 
+# ---------------- UTILS ----------------
+def normalize_phone(phone: str) -> str:
+    """Очищает номер и добавляет '+' при необходимости."""
+    phone = phone.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    if not phone.startswith("+"):
+        phone = f"+{phone}"
+    return phone
+
+
+def phone_to_html(phone: str) -> str:
+    """Создаёт кликабельный HTML-номер."""
+    phone_clean = normalize_phone(phone)
+    return f'<a href="tel:{phone_clean}">{phone}</a>'
+
+
 # ---------------- START ----------------
 @router.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
@@ -38,7 +53,7 @@ async def create_order_start(message: Message, state: FSMContext):
 # ---------------- PHONE ----------------
 @router.message(OrderState.phone, F.contact)
 async def get_phone(message: Message, state: FSMContext):
-    phone = message.contact.phone_number
+    phone = normalize_phone(message.contact.phone_number)
 
     await save_user(message.from_user.id, phone)
     await state.update_data(phone=phone)
@@ -78,7 +93,8 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
         return
 
     data = await state.get_data()
-    phone = data["phone"]
+    phone = normalize_phone(data["phone"])
+    phone_html = phone_to_html(phone)
 
     order_id = await create_order(
         user_id,
@@ -89,15 +105,12 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
         message.text
     )
 
-    phone_clean = phone.replace(" ", "").replace("-", "")
-    phone_html = f'<a href="tel:{phone_clean}">{phone}</a>'
-
     text = (
-        f"Замовлення #{order_id}\n"
-        f"Телефон: {phone_html}\n"
-        f"Від: {data['from_loc']}\n"
-        f"До: {data['to_loc']}\n"
-        f"Коментар: {message.text}"
+        f"<b>Замовлення #{order_id}</b>\n"
+        f"📞 Телефон: {phone_html}\n"
+        f"📍 Від: {data['from_loc']}\n"
+        f"🏁 До: {data['to_loc']}\n"
+        f"💬 Коментар: {message.text}"
     )
 
     sent = await bot.send_message(
@@ -112,15 +125,15 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
     user_last_order_time[user_id] = now
     user_active_order[user_id] = order_id
 
-    await message.answer("Замовлення створено")
+    await message.answer("Замовлення створено", reply_markup=main_menu())
     await state.clear()
+
 
 # ---------------- CANCEL ORDER FROM MENU ----------------
 @router.message(F.text == "Скасувати замовлення")
 async def cancel_order_from_menu(message: Message, bot: Bot):
     user_id = message.from_user.id
 
-    # Перевіряємо, чи є активне замовлення
     order_id = user_active_order.get(user_id)
     if not order_id:
         await message.answer("У вас немає активних замовлень", reply_markup=main_menu())
@@ -131,26 +144,20 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
         await message.answer("Замовлення не знайдено", reply_markup=main_menu())
         return
 
-    # Оновлюємо статус у базі
     await update_order(order_id, "cancelled")
-
-    # Видаляємо з пам’яті
     user_active_order.pop(user_id, None)
 
-    # Повідомляємо клієнта
     await message.answer(
         f"❌ Замовлення №{order_id} скасовано",
         reply_markup=main_menu()
     )
 
-    # Повідомляємо водія, якщо він вже прийняв замовлення
     if order.get("driver_id"):
         await bot.send_message(
             order["driver_id"],
             f"❌ Замовлення №{order_id} було скасовано пасажиром"
         )
 
-    # Оновлюємо повідомлення в групі
     if order.get("message_id"):
         try:
             await bot.edit_message_text(
@@ -160,6 +167,7 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
             )
         except Exception:
             pass
+
 
 # ---------------- TAKE ORDER ----------------
 @router.callback_query(F.data.startswith("take_"))
@@ -178,7 +186,7 @@ async def take_order(callback: CallbackQuery, bot: Bot):
 
     await update_order(order_id, "taken", callback.from_user.id)
 
-    text = callback.message.text + "\n\nСтатус: прийнято водієм"
+    text = callback.message.text + "\n\n<b>Статус: прийнято водієм</b>"
 
     await callback.message.edit_text(
         text,
@@ -186,10 +194,12 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         parse_mode="HTML"
     )
 
+    driver_phone_html = phone_to_html(driver["phone"])
+
     driver_text = (
-        f"🚖 Ваше замовлення прийнято водієм\n\n"
+        "<b>🚖 Ваше замовлення прийнято водієм</b>\n\n"
         f"👨‍✈️ Водій: {driver.get('username', 'Невідомо')}\n"
-        f"📞 Телефон: <a href='tel:{driver['phone']}'>{driver['phone']}</a>\n"
+        f"📞 Телефон: {driver_phone_html}\n"
         f"🚗 Авто: {driver['brand']} {driver['model']} ({driver['color']})\n"
         f"🔢 Номер: {driver['plate']}"
     )
@@ -211,14 +221,15 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
 
     user_id = callback.from_user.id
 
-    if order["client_id"] != user_id and order["driver_id"] != user_id:
+    if order["client_id"] != user_id and order.get("driver_id") != user_id:
         await callback.answer("Немає доступу", show_alert=True)
         return
 
     await update_order(order_id, "cancelled")
+    user_active_order.pop(order["client_id"], None)
 
     await callback.message.edit_text(
-        callback.message.text + "\n\nСтатус: скасовано",
+        callback.message.text + "\n\n<b>Статус: скасовано</b>",
         parse_mode="HTML"
     )
 
@@ -239,8 +250,7 @@ async def arrived_order(callback: CallbackQuery, bot: Bot):
     await update_order(order_id, "arrived")
 
     await callback.message.edit_reply_markup(reply_markup=complete_kb(order_id))
-
-    await bot.send_message(order["client_id"], "Водій прибув")
+    await bot.send_message(order["client_id"], "🚖 Водій прибув")
 
     await callback.answer("Готово")
 
@@ -256,9 +266,9 @@ async def complete_order(callback: CallbackQuery, bot: Bot):
         return
 
     await update_order(order_id, "completed")
+    user_active_order.pop(order["client_id"], None)
 
     await callback.message.edit_reply_markup()
-
-    await bot.send_message(order["client_id"], "Поїздку завершено")
+    await bot.send_message(order["client_id"], "✅ Поїздку завершено")
 
     await callback.answer("Завершено")
