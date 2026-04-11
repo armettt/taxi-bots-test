@@ -184,18 +184,36 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("Замовлення вже взято")
         return
 
+    # Обновляем статус заказа
     await update_order(order_id, "taken", callback.from_user.id)
 
-    text = callback.message.text + "\n\n<b>Статус: прийнято водієм</b>"
+    # Нормализация номера клиента
+    client_phone = order["phone"]
+    client_phone_clean = normalize_phone(client_phone)
+    client_phone_html = f'<a href="tel:{client_phone_clean}">{client_phone}</a>'
 
+    # Формируем обновлённый текст для группы
+    group_text = (
+        f"<b>Замовлення #{order_id}</b>\n"
+        f"📞 Телефон: {client_phone_html}\n"
+        f"📍 Від: {order['from_loc']}\n"
+        f"🏁 До: {order['to_loc']}\n"
+        f"💬 Коментар: {order['comment']}\n\n"
+        f"<b>Статус: прийнято водієм</b>"
+    )
+
+    # Обновляем сообщение в группе
     await callback.message.edit_text(
-        text,
+        group_text,
         reply_markup=arrived_kb(order_id),
         parse_mode="HTML"
     )
 
-    driver_phone_html = phone_to_html(driver["phone"])
+    # Нормализация номера водителя
+    driver_phone_clean = normalize_phone(driver["phone"])
+    driver_phone_html = f'<a href="tel:{driver_phone_clean}">{driver["phone"]}</a>'
 
+    # Сообщение пассажиру с информацией о водителе
     driver_text = (
         "<b>🚖 Ваше замовлення прийнято водієм</b>\n\n"
         f"👨‍✈️ Водій: {driver.get('username', 'Невідомо')}\n"
@@ -210,7 +228,7 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         parse_mode="HTML"
     )
 
-    await callback.answer("Прийнято")
+    await callback.answer("Замовлення прийнято")
 
 
 # ---------------- CANCEL ORDER ----------------
