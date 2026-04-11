@@ -1,27 +1,25 @@
 import asyncio
-import logging
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
-from dotenv import load_dotenv
-
-from .config import BOT_TOKEN
-from .handlers import router
-from shared.database import init_db
+from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
+from passenger_bot.handlers import router
+from passenger_bot.config import BOT_TOKEN
 
 
 async def main():
-    await init_db()
     bot = Bot(
-    token=BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode="HTML")
-)
-    dp = Dispatcher(storage=MemoryStorage())
+        token=BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
 
+    # Удаляем webhook
+    await bot.delete_webhook(drop_pending_updates=True)
+
+    dp = Dispatcher()
     dp.include_router(router)
+
+    print("Бот запущен...")
     await dp.start_polling(bot)
 
 
