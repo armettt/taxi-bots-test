@@ -107,6 +107,7 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
 
     text = (
         f"<b>Замовлення #{order_id}</b>\n"
+        f"👤 Клієнт: {user_identity}\n"
         f"📞 Телефон: {phone_html}\n"
         f"📍 Від: {data['from_loc']}\n"
         f"🏁 До: {data['to_loc']}\n"
