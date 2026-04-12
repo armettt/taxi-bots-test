@@ -178,19 +178,21 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
 @router.callback_query(F.data.startswith("take_"))
 async def take_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
+    driver_id = callback.from_user.id
 
-    driver = await get_driver(callback.from_user.id)
+    driver = await get_driver(driver_id)
     if not driver:
         await callback.answer("Ви не зареєстровані", show_alert=True)
         return
 
-    order = await get_order(order_id)
+    # 🔥 АТОМАРНОЕ ЗАБРАТИЕ (главная защита)
+    result = await try_take_order(order_id, driver_id)
 
-    if order["status"] != "waiting":
-        await callback.answer("Замовлення вже взято")
+    if not result:
+        await callback.answer("Замовлення вже взято іншим водієм", show_alert=True)
         return
 
-    await update_order(order_id, "taken", callback.from_user.id)
+    order = await get_order(order_id)
 
     client_phone_html = phone_to_html(order["phone"])
 
@@ -216,7 +218,7 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         parse_mode="HTML"
     )
 
-    await callback.answer("Прийнято")
+    await callback.answer("Ви взяли замовлення")
 
 
 # ---------------- CANCEL CALLBACK ----------------
