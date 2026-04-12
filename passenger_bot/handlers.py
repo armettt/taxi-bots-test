@@ -2,6 +2,7 @@ import time
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.filters import StateFilter
 
 from .states import OrderState
 from .keyboards import main_menu, contact_kb, take_order_kb, arrived_kb, complete_kb
