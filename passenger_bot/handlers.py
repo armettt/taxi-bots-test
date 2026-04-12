@@ -235,36 +235,54 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
     user_id = callback.from_user.id
     driver_id = order.get("driver_id")
 
-    # ❌ waiting нельзя отменять
+    # ❌ нельзя отменить если заказ ещё не взят
     if order["status"] == "waiting":
-        await callback.answer("Спочатку потрібно взяти замовлення", show_alert=True)
+        await callback.answer(
+            "Спочатку потрібно взяти замовлення",
+            show_alert=True
+        )
         return
 
-    # ❌ completed/cancelled
+    # ❌ нельзя отменять завершённые
     if order["status"] in ("completed", "cancelled"):
-        await callback.answer("Замовлення вже завершено", show_alert=True)
+        await callback.answer(
+            "Замовлення вже завершено",
+            show_alert=True
+        )
         return
 
-    # ❌ доступ
-    if user_id != order["client_id"] and user_id != driver_id:
+    # ❌ доступ только клиенту или водителю
+    if user_id not in (order["client_id"], driver_id):
         await callback.answer("Немає доступу", show_alert=True)
         return
 
+    # обновляем статус
     await update_order(order_id, "cancelled")
     user_active_order.pop(order["client_id"], None)
 
+    # 🔥 обновляем сообщение в группе (без спама пользователям группы)
     try:
         await callback.message.edit_text(
-            callback.message.text + "\n\n<b>❌ Скасовано</b>",
+            f"❌ Замовлення #{order_id} скасовано",
             parse_mode="HTML"
         )
     except:
         pass
 
-    await bot.send_message(order["client_id"], f"❌ Замовлення №{order_id} скасовано")
+    # ✅ клиент получает сообщение
+    await bot.send_message(
+        order["client_id"],
+        f"❌ Ваше замовлення №{order_id} скасовано"
+    )
 
+    # ✅ водитель получает только если он есть
     if driver_id and driver_id != order["client_id"]:
-        await bot.send_message(driver_id, f"❌ Замовлення №{order_id} скасовано")
+        await bot.send_message(
+            driver_id,
+            f"❌ Замовлення №{order_id} скасовано"
+        )
+
+    await callback.answer("Скасовано")
 
 
 # ---------------- ARRIVED ----------------
