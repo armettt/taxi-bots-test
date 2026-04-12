@@ -26,7 +26,6 @@ from .config import GROUP_ID
 
 router = Router()
 
-# Антиспам при создании заказов
 user_last_order_time = {}
 
 
@@ -119,12 +118,10 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
     user_id = message.from_user.id
     now = time.time()
 
-    # Антиспам
     if user_last_order_time.get(user_id, 0) + 30 > now:
         await message.answer("⏳ Потрібно зачекати 30 секунд")
         return
 
-    # Проверка активного заказа через БД
     if await has_active_order(user_id):
         await message.answer("❌ У вас вже є активне замовлення")
         return
@@ -167,19 +164,15 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
 
     user_last_order_time[user_id] = now
 
-    await message.answer(
-        "✅ Замовлення створено",
-        reply_markup=main_menu()
-    )
+    await message.answer("✅ Замовлення створено", reply_markup=main_menu())
     await state.clear()
 
 
-# ---------------- CANCEL FROM MENU ----------------
+# ---------------- CANCEL FROM MENU (FIXED) ----------------
 @router.message(F.text == "Скасувати замовлення")
 async def cancel_order_from_menu(message: Message, bot: Bot):
     user_id = message.from_user.id
 
-    # Получаем активный заказ из БД
     order = await has_active_order(user_id)
     if not order:
         await message.answer(
@@ -192,16 +185,25 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
 
     await update_order(order["id"], "cancelled")
 
+    # 🔥 ОБНОВЛЯЕМ СООБЩЕНИЕ В ГРУППЕ
+    if order.get("message_id"):
+        try:
+            await bot.edit_message_text(
+                chat_id=GROUP_ID,
+                message_id=order["message_id"],
+                text=f"❌ Замовлення #{order['id']} скасовано пасажиром",
+                parse_mode="HTML"
+            )
+        except:
+            pass
+
+    # 🔥 ОТПРАВЛЯЕМ ТОЛЬКО ОДИН РАЗ
     await message.answer(
         f"❌ Замовлення №{order['id']} скасовано",
         reply_markup=main_menu()
     )
 
-    await bot.send_message(
-        order["client_id"],
-        f"❌ Ваше замовлення №{order['id']} скасовано"
-    )
-
+    # водителю (если есть)
     if order.get("driver_id"):
         await bot.send_message(
             order["driver_id"],
@@ -209,7 +211,7 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
         )
 
 
-# ---------------- TAKE ORDER (ANTI 2 DRIVERS) ----------------
+# ---------------- TAKE ORDER ----------------
 @router.callback_query(F.data.startswith("take_"))
 async def take_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
@@ -220,13 +222,9 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("Ви не зареєстровані", show_alert=True)
         return
 
-    # Атомарное принятие заказа
     result = await try_take_order(order_id, driver_id)
     if not result:
-        await callback.answer(
-            "Замовлення вже взято іншим водієм",
-            show_alert=True
-        )
+        await callback.answer("Замовлення вже взято", show_alert=True)
         return
 
     order = await get_order(order_id)
@@ -253,37 +251,26 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         "🚖 Ваше замовлення прийнято водієм"
     )
 
-    await callback.answer("Ви взяли замовлення")
+    await callback.answer()
 
 
-# ---------------- CANCEL CALLBACK ----------------
+# ---------------- CANCEL CALLBACK (FIXED) ----------------
 @router.callback_query(F.data.startswith("cancel_"))
 async def cancel_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
     order = await get_order(order_id)
 
     if not order:
-        await callback.answer("Замовлення не знайдено", show_alert=True)
-        return
-
-    user_id = callback.from_user.id
-    driver_id = order.get("driver_id")
-
-    if order["status"] == "waiting":
-        await callback.answer(
-            "Спочатку потрібно взяти замовлення",
-            show_alert=True
-        )
+        await callback.answer("Не знайдено", show_alert=True)
         return
 
     if order["status"] in ("completed", "cancelled"):
-        await callback.answer(
-            "Замовлення вже завершено",
-            show_alert=True
-        )
+        await callback.answer("Вже завершено", show_alert=True)
         return
 
-    if user_id not in (order["client_id"], driver_id):
+    user_id = callback.from_user.id
+
+    if user_id not in (order["client_id"], order.get("driver_id")):
         await callback.answer("Немає доступу", show_alert=True)
         return
 
@@ -294,17 +281,19 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
             f"❌ Замовлення #{order_id} скасовано",
             parse_mode="HTML"
         )
-    except Exception:
+    except:
         pass
 
-    await bot.send_message(
-        order["client_id"],
-        f"❌ Ваше замовлення №{order_id} скасовано"
-    )
-
-    if driver_id:
+    # 🔥 НЕ шлём клиенту повторно (он и так нажал кнопку)
+    if user_id != order["client_id"]:
         await bot.send_message(
-            driver_id,
+            order["client_id"],
+            f"❌ Замовлення №{order_id} скасовано"
+        )
+
+    if order.get("driver_id") and user_id != order["driver_id"]:
+        await bot.send_message(
+            order["driver_id"],
             f"❌ Замовлення №{order_id} скасовано"
         )
 
@@ -318,18 +307,16 @@ async def arrived_order(callback: CallbackQuery, bot: Bot):
     order = await get_order(order_id)
 
     if callback.from_user.id != order["driver_id"]:
-        await callback.answer("Не ваше замовлення", show_alert=True)
+        await callback.answer("Не ваше", show_alert=True)
         return
 
     await update_order(order_id, "arrived")
+
     await callback.message.edit_reply_markup(
         reply_markup=complete_kb(order_id)
     )
 
-    await bot.send_message(
-        order["client_id"],
-        "🚖 Водій прибув"
-    )
+    await bot.send_message(order["client_id"], "🚖 Водій прибув")
 
     await callback.answer()
 
@@ -341,16 +328,13 @@ async def complete_order(callback: CallbackQuery, bot: Bot):
     order = await get_order(order_id)
 
     if callback.from_user.id != order["driver_id"]:
-        await callback.answer("Не ваше замовлення", show_alert=True)
+        await callback.answer("Не ваше", show_alert=True)
         return
 
     await update_order(order_id, "completed")
 
     await callback.message.edit_reply_markup()
 
-    await bot.send_message(
-        order["client_id"],
-        "✅ Поїздку завершено"
-    )
+    await bot.send_message(order["client_id"], "✅ Поїздку завершено")
 
-    await callback.answer("Замовлення завершено")
+    await callback.answer("Завершено")
