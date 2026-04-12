@@ -42,3 +42,10 @@ async def delete_order(order_id):
 
 async def get_driver(user_id):
     return await fetchrow("SELECT * FROM drivers WHERE user_id=$1", user_id)
+
+status:
+- waiting
+- taken
+- arrived
+- completed
+- cancelled
