@@ -162,20 +162,15 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
     await update_order(order_id, "cancelled")
     user_active_order.pop(user_id, None)
 
+    # клиент
     await message.answer(f"❌ Замовлення №{order_id} скасовано", reply_markup=main_menu())
 
+    # водитель
     if order.get("driver_id"):
-        await bot.send_message(order["driver_id"], f"❌ Замовлення №{order_id} скасовано")
-
-    if order.get("message_id"):
-        try:
-            await bot.edit_message_text(
-                chat_id=GROUP_ID,
-                message_id=order["message_id"],
-                text=f"❌ Замовлення №{order_id} скасовано"
-            )
-        except:
-            pass
+        await bot.send_message(
+            order["driver_id"],
+            f"❌ Замовлення №{order_id} скасовано"
+        )
 
 
 # ---------------- TAKE ORDER ----------------
@@ -207,19 +202,17 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         f"<b>Статус: прийнято водієм</b>"
     )
 
-    await callback.message.edit_text(group_text, reply_markup=arrived_kb(order_id), parse_mode="HTML")
-
-    driver_phone_html = phone_to_html(driver["phone"])
-
-    driver_text = (
-        "<b>🚖 Ваше замовлення прийнято водієм</b>\n\n"
-        f"👨‍✈️ Водій: {driver.get('username', 'Невідомо')}\n"
-        f"📞 Телефон: {driver_phone_html}\n"
-        f"🚗 Авто: {driver['brand']} {driver['model']} ({driver['color']})\n"
-        f"🔢 Номер: {driver['plate']}"
+    await callback.message.edit_text(
+        group_text,
+        reply_markup=arrived_kb(order_id),
+        parse_mode="HTML"
     )
 
-    await bot.send_message(order["client_id"], driver_text, parse_mode="HTML")
+    await bot.send_message(
+        order["client_id"],
+        "🚖 Ваше замовлення прийнято водієм",
+        parse_mode="HTML"
+    )
 
 
 # ---------------- CANCEL CALLBACK ----------------
@@ -235,32 +228,20 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
     user_id = callback.from_user.id
     driver_id = order.get("driver_id")
 
-    # ❌ нельзя отменить если заказ ещё не взят
+    # ❌ нельзя отменять если ещё не взяли
     if order["status"] == "waiting":
-        await callback.answer(
-            "Спочатку потрібно взяти замовлення",
-            show_alert=True
-        )
+        await callback.answer("Спочатку потрібно взяти замовлення", show_alert=True)
         return
 
-    # ❌ нельзя отменять завершённые
-    if order["status"] in ("completed", "cancelled"):
-        await callback.answer(
-            "Замовлення вже завершено",
-            show_alert=True
-        )
-        return
-
-    # ❌ доступ только клиенту или водителю
+    # ❌ доступ
     if user_id not in (order["client_id"], driver_id):
         await callback.answer("Немає доступу", show_alert=True)
         return
 
-    # обновляем статус
     await update_order(order_id, "cancelled")
     user_active_order.pop(order["client_id"], None)
 
-    # 🔥 обновляем сообщение в группе (без спама пользователям группы)
+    # ❗ ТОЛЬКО ОБНОВЛЕНИЕ В ГРУППЕ (без рассылки)
     try:
         await callback.message.edit_text(
             f"❌ Замовлення #{order_id} скасовано",
@@ -269,13 +250,13 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
     except:
         pass
 
-    # ✅ клиент получает сообщение
+    # клиент
     await bot.send_message(
         order["client_id"],
         f"❌ Ваше замовлення №{order_id} скасовано"
     )
 
-    # ✅ водитель получает только если он есть
+    # водитель
     if driver_id and driver_id != order["client_id"]:
         await bot.send_message(
             driver_id,
