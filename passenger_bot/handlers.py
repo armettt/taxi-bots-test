@@ -265,23 +265,52 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
     order = await get_order(order_id)
 
+    if not order:
+        await callback.answer("Замовлення не знайдено", show_alert=True)
+        return
+
     user_id = callback.from_user.id
 
-    if order["client_id"] != user_id and order.get("driver_id") != user_id:
+    # ❌ Нельзя отменить заказ, если он ещё не принят
+    if order["status"] == "waiting":
+        await callback.answer(
+            "Спочатку потрібно взяти замовлення",
+            show_alert=True
+        )
+        return
+
+    # ❌ Отменить может только клиент или назначенный водитель
+    if user_id not in (order["client_id"], order.get("driver_id")):
         await callback.answer("Немає доступу", show_alert=True)
         return
 
+    # Обновляем статус
     await update_order(order_id, "cancelled")
     user_active_order.pop(order["client_id"], None)
 
-    await callback.message.edit_text(
-        callback.message.text + "\n\n<b>Статус: скасовано</b>",
-        parse_mode="HTML"
+    # Обновляем сообщение в группе
+    try:
+        await callback.message.edit_text(
+            callback.message.text + "\n\n<b>❌ Статус: скасовано</b>",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+
+    # Уведомляем клиента
+    await bot.send_message(
+        order["client_id"],
+        f"❌ Замовлення №{order_id} скасовано"
     )
 
-    await bot.send_message(order["client_id"], "Замовлення скасовано")
-    await callback.answer("Скасовано")
+    # Уведомляем водителя, если он назначен
+    if order.get("driver_id") and order["driver_id"] != order["client_id"]:
+        await bot.send_message(
+            order["driver_id"],
+            f"❌ Замовлення №{order_id} скасовано"
+        )
 
+    await callback.answer("Замовлення скасовано")
 
 # ---------------- ARRIVED ----------------
 @router.callback_query(F.data.startswith("arrived_"))
