@@ -1,5 +1,11 @@
 from shared.database import fetchrow, execute
 
+ORDER_WAITING = "waiting"
+ORDER_TAKEN = "taken"
+ORDER_ARRIVED = "arrived"
+ORDER_COMPLETED = "completed"
+ORDER_CANCELLED = "cancelled"
+
 # ---------------- USERS ----------------
 async def get_user(user_id):
     return await fetchrow(
@@ -82,3 +88,19 @@ async def get_active_order(client_id: int):
         ORDER BY id DESC
         LIMIT 1
     """, client_id)
+
+
+async def set_order_status(order_id: int, new_status: str, driver_id: int = None):
+    """
+    Безопасное обновление статуса:
+    - нельзя случайно затереть driver_id
+    - всё централизовано
+    """
+
+    await execute("""
+        UPDATE orders
+        SET
+            status = $1,
+            driver_id = COALESCE($2, driver_id)
+        WHERE id = $3
+    """, new_status, driver_id, order_id)
