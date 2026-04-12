@@ -242,11 +242,9 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
         return
 
     # 🔥 защита от чужого водителя
-    if driver_id and user_id == driver_id:
-        pass
-    elif user_id != order["client_id"]:
+    if user_id not in (order["client_id"], driver_id):
         await callback.answer("Немає доступу", show_alert=True)
-        return
+    return
 
     await update_order(order_id, "cancelled")
     active_orders.pop(order["client_id"], None)
