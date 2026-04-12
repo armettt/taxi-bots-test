@@ -132,3 +132,19 @@ async def get_driver(user_id):
         "SELECT * FROM drivers WHERE user_id=$1",
         user_id
     )
+    async def try_take_order(order_id: int, driver_id: int):
+    """
+    Атомарное закрепление заказа за водителем
+    (защита от 2 водителей одновременно)
+    """
+
+    row = await fetchrow("""
+        UPDATE orders
+        SET status = 'taken',
+            driver_id = $2
+        WHERE id = $1
+          AND status = 'waiting'
+        RETURNING id, driver_id
+    """, order_id, driver_id)
+
+    return row
