@@ -20,8 +20,16 @@ async def save_user(user_id, phone):
 # ---------------- ORDERS ----------------
 async def create_order(client_id, phone, username, from_loc, to_loc, comment):
     row = await fetchrow("""
-        INSERT INTO orders (client_id, phone, username, from_loc, to_loc, comment, status)
-        VALUES ($1,$2,$3,$4,$5,$6,'waiting')
+        INSERT INTO orders (
+            client_id,
+            phone,
+            username,
+            from_loc,
+            to_loc,
+            comment,
+            status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, 'waiting')
         RETURNING id
     """, client_id, phone, username, from_loc, to_loc, comment)
 
@@ -54,13 +62,12 @@ async def get_driver(user_id):
     )
 
 
-# ---------------- АТОМАРНОЕ ЗАБРАТИЕ ЗАКАЗА (ЗАЩИТА ОТ 2 ВОДИТЕЛЕЙ) ----------------
+# ---------------- АТОМАРНОЕ ЗАБРАТИЕ ЗАКАЗА ----------------
 async def try_take_order(order_id: int, driver_id: int) -> bool:
     """
-    Забирает заказ ТОЛЬКО если он ещё waiting.
-    Это защита от 2 водителей одновременно.
+    Забирает заказ только если он находится в статусе 'waiting'.
+    Защита от одновременного принятия двумя водителями.
     """
-
     row = await fetchrow("""
         UPDATE orders
         SET status = 'taken',
@@ -73,16 +80,20 @@ async def try_take_order(order_id: int, driver_id: int) -> bool:
     return row is not None
 
 
-# ---------------- ACTIVE ORDER (ОПЦИОНАЛЬНО) ----------------
+# ---------------- ACTIVE ORDER ----------------
 async def get_active_order(client_id: int):
+    """
+    Возвращает активный заказ пользователя.
+    """
     return await fetchrow("""
         SELECT *
         FROM orders
-        WHERE client_id=$1
-          AND status IN ('waiting','taken','arrived')
+        WHERE client_id = $1
+          AND status IN ('waiting', 'taken', 'arrived')
         ORDER BY id DESC
         LIMIT 1
     """, client_id)
+
 
 # ---------------- CHECK ACTIVE ORDER ----------------
 async def has_active_order(user_id: int):
@@ -90,15 +101,11 @@ async def has_active_order(user_id: int):
     Проверяет, есть ли у пользователя активный заказ.
     Возвращает запись заказа или None.
     """
-    query = """
+    return await fetchrow("""
         SELECT *
         FROM orders
         WHERE client_id = $1
           AND status IN ('waiting', 'taken', 'arrived')
         ORDER BY id DESC
         LIMIT 1
-    """
-
-    async with pool.acquire() as conn:
-        order = await conn.fetchrow(query, user_id)
-        return dict(order) if order else None
+    """, user_id)
