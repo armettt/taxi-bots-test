@@ -6,12 +6,12 @@ from aiogram.filters import StateFilter
 
 from .states import OrderState
 from .keyboards import main_menu, contact_kb, take_order_kb, arrived_kb, complete_kb
-from .db import get_user, save_user, create_order, update_order, get_order, get_driver
+from .db import get_user, save_user, create_order, update_order, get_order, get_driver, try_take_order
 from .config import GROUP_ID
 
 router = Router()
 
-active_orders = {}  # client_id -> order_id
+active_orders = {}
 user_last_order_time = {}
 
 
@@ -174,7 +174,7 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
         await bot.send_message(order["driver_id"], f"❌ Замовлення №{order_id} скасовано")
 
 
-# ---------------- TAKE ORDER ----------------
+# ---------------- TAKE ORDER (FIXED + ANTI 2 DRIVERS) ----------------
 @router.callback_query(F.data.startswith("take_"))
 async def take_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
@@ -185,7 +185,7 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("Ви не зареєстровані", show_alert=True)
         return
 
-    # 🔥 АТОМАРНОЕ ЗАБРАТИЕ (главная защита)
+    # 🔥 АТОМАРНАЯ БЛОКИРОВКА (ВАЖНО)
     result = await try_take_order(order_id, driver_id)
 
     if not result:
@@ -221,7 +221,7 @@ async def take_order(callback: CallbackQuery, bot: Bot):
     await callback.answer("Ви взяли замовлення")
 
 
-# ---------------- CANCEL CALLBACK ----------------
+# ---------------- CANCEL CALLBACK (FIXED SAFETY) ----------------
 @router.callback_query(F.data.startswith("cancel_"))
 async def cancel_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
@@ -242,7 +242,10 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("Замовлення вже завершено", show_alert=True)
         return
 
-    if user_id not in (order["client_id"], driver_id):
+    # 🔥 защита от чужого водителя
+    if driver_id and user_id == driver_id:
+        pass
+    elif user_id != order["client_id"]:
         await callback.answer("Немає доступу", show_alert=True)
         return
 
@@ -261,8 +264,6 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
 
     if driver_id and driver_id != order["client_id"]:
         await bot.send_message(driver_id, f"❌ Замовлення №{order_id} скасовано")
-
-    await callback.answer("Скасовано")
 
 
 # ---------------- ARRIVED ----------------
