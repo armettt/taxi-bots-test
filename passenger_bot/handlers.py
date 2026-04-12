@@ -36,6 +36,25 @@ async def start(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Головне меню", reply_markup=main_menu())
 
+# ---------------- CANCEL ORDER DURING CREATION ----------------
+@router.message(
+    StateFilter(
+        OrderState.phone,
+        OrderState.from_loc,
+        OrderState.to_loc,
+        OrderState.comment
+    ),
+    F.text == "Скасувати замовлення"
+)
+async def cancel_order_during_creation(message: Message, state: FSMContext):
+    # Отменяем процесс создания заказа
+    await state.clear()
+
+    await message.answer(
+        "У вас немає активного замовлення",
+        reply_markup=main_menu()
+    )
+
 # ---------------- CANCEL ORDER DURING FSM ----------------
 @router.message(
     F.text == "Скасувати замовлення",
