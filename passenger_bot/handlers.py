@@ -261,43 +261,62 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
     order = await get_order(order_id)
 
     if not order:
-        await callback.answer("Не знайдено", show_alert=True)
-        return
-
-    if order["status"] in ("completed", "cancelled"):
-        await callback.answer("Вже завершено", show_alert=True)
+        await callback.answer("Замовлення не знайдено", show_alert=True)
         return
 
     user_id = callback.from_user.id
+    driver_id = order.get("driver_id")
+    client_id = order["client_id"]
 
-    if user_id not in (order["client_id"], order.get("driver_id")):
-        await callback.answer("Немає доступу", show_alert=True)
+    # Нельзя отменить завершённый или уже отменённый заказ
+    if order["status"] in ("completed", "cancelled"):
+        await callback.answer(
+            "Замовлення вже завершено",
+            show_alert=True
+        )
         return
 
+    # 🚫 Защита: только клиент или назначенный водитель
+    if user_id != client_id and user_id != driver_id:
+        await callback.answer(
+            "Ви не можете скасувати це замовлення",
+            show_alert=True
+        )
+        return
+
+    # Обновляем статус
     await update_order(order_id, "cancelled")
+
+    # Обновляем сообщение в группе
+    cancel_text = f"❌ Замовлення #{order_id} скасовано"
+    if user_id == client_id:
+        cancel_text += " пасажиром"
+    else:
+        cancel_text += " водієм"
 
     try:
         await callback.message.edit_text(
-            f"❌ Замовлення #{order_id} скасовано",
+            cancel_text,
             parse_mode="HTML"
         )
-    except:
+    except Exception:
         pass
 
-    # 🔥 НЕ шлём клиенту повторно (он и так нажал кнопку)
-    if user_id != order["client_id"]:
+    # Уведомляем клиента (если отменил водитель)
+    if user_id != client_id:
         await bot.send_message(
-            order["client_id"],
+            client_id,
+            f"❌ Ваше замовлення №{order_id} скасовано"
+        )
+
+    # Уведомляем водителя (если отменил клиент)
+    if driver_id and user_id != driver_id:
+        await bot.send_message(
+            driver_id,
             f"❌ Замовлення №{order_id} скасовано"
         )
 
-    if order.get("driver_id") and user_id != order["driver_id"]:
-        await bot.send_message(
-            order["driver_id"],
-            f"❌ Замовлення №{order_id} скасовано"
-        )
-
-    await callback.answer("Скасовано")
+    await callback.answer("Замовлення скасовано")
 
 
 # ---------------- ARRIVED ----------------
