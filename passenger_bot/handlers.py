@@ -11,6 +11,7 @@ from .config import GROUP_ID
 
 router = Router()
 
+active_orders = {}  # client_id -> order_id
 user_last_order_time = {}
 await has_active_order(user_id)
 
