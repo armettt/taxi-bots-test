@@ -83,3 +83,22 @@ async def get_active_order(client_id: int):
         ORDER BY id DESC
         LIMIT 1
     """, client_id)
+
+# ---------------- CHECK ACTIVE ORDER ----------------
+async def has_active_order(user_id: int):
+    """
+    Проверяет, есть ли у пользователя активный заказ.
+    Возвращает запись заказа или None.
+    """
+    query = """
+        SELECT *
+        FROM orders
+        WHERE client_id = $1
+          AND status IN ('waiting', 'taken', 'arrived')
+        ORDER BY id DESC
+        LIMIT 1
+    """
+
+    async with pool.acquire() as conn:
+        order = await conn.fetchrow(query, user_id)
+        return dict(order) if order else None
