@@ -12,7 +12,7 @@ from .config import GROUP_ID
 router = Router()
 
 user_last_order_time = {}
-user_active_order = {}
+await has_active_order(user_id)
 
 
 # ---------------- UTILS ----------------
