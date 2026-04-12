@@ -1,0 +1,5 @@
+ORDER_WAITING = "waiting"
+ORDER_TAKEN = "taken"
+ORDER_ARRIVED = "arrived"
+ORDER_COMPLETED = "completed"
+ORDER_CANCELLED = "cancelled"
