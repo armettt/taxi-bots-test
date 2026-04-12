@@ -156,6 +156,22 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
     await message.answer("Замовлення створено", reply_markup=main_menu())
     await state.clear()
 
+# ---------------- GLOBAL CANCEL CHECK ----------------
+@router.message(F.text == "Скасувати замовлення")
+async def cancel_without_active_order(message: Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state:
+        await state.clear()
+        await message.answer(
+            "❌ Замовлення скасовано",
+            reply_markup=main_menu()
+        )
+    else:
+        await message.answer(
+            "У вас немає активного замовлення",
+            reply_markup=main_menu()
+        )
+
 # ---------------- CANCEL ORDER FROM MENU ----------------
 @router.message(F.text == "Скасувати замовлення")
 async def cancel_order_from_menu(message: Message, bot: Bot):
