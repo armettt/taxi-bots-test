@@ -11,7 +11,6 @@ from .config import GROUP_ID
 
 router = Router()
 
-active_orders = {}
 user_last_order_time = {}
 
 
