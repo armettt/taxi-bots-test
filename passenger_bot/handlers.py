@@ -98,7 +98,7 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
         await message.answer("Потрібно зачекати 30 секунд")
         return
 
-    if user_id in user_active_order:
+    if user_id in active_orders:
         await message.answer("У вас вже є активне замовлення")
         return
 
@@ -139,7 +139,7 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
     await update_order(order_id, "waiting", message_id=sent.message_id)
 
     user_last_order_time[user_id] = now
-    user_active_order[user_id] = order_id
+    active_orders[user_id] = order_id
 
     await message.answer("✅ Замовлення створено", reply_markup=main_menu())
     await state.clear()
