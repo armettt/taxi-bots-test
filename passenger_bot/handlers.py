@@ -36,7 +36,8 @@ async def start(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Головне меню", reply_markup=main_menu())
 
-# ---------------- CANCEL ORDER DURING CREATION ----------------
+
+# ---------------- CANCEL DURING ORDER CREATION ----------------
 @router.message(
     StateFilter(
         OrderState.phone,
@@ -47,36 +48,12 @@ async def start(message: Message, state: FSMContext):
     F.text == "Скасувати замовлення"
 )
 async def cancel_order_during_creation(message: Message, state: FSMContext):
-    # Отменяем процесс создания заказа
     await state.clear()
-
     await message.answer(
-        "У вас немає активного замовлення",
+        "❌ У вас немає активного замовлення",
         reply_markup=main_menu()
     )
 
-# ---------------- CANCEL ORDER DURING FSM ----------------
-@router.message(
-    F.text == "Скасувати замовлення",
-    OrderState.phone | OrderState.from_loc | OrderState.to_loc | OrderState.comment
-)
-async def cancel_order_during_creation(message: Message, state: FSMContext):
-    # Проверяем, есть ли активное состояние
-    current_state = await state.get_state()
-    if not current_state:
-        await message.answer(
-            "У вас немає активного замовлення",
-            reply_markup=main_menu()
-        )
-        return
-
-    # Сбрасываем состояние
-    await state.clear()
-
-    await message.answer(
-        "❌ Замовлення скасовано",
-        reply_markup=main_menu()
-    )
 
 # ---------------- CREATE ORDER ----------------
 @router.message(F.text == "Створити замовлення")
@@ -88,7 +65,10 @@ async def create_order_start(message: Message, state: FSMContext):
         await message.answer("Введіть адресу відправлення")
         await state.set_state(OrderState.from_loc)
     else:
-        await message.answer("Надішліть номер телефону", reply_markup=contact_kb())
+        await message.answer(
+            "Надішліть номер телефону",
+            reply_markup=contact_kb()
+        )
         await state.set_state(OrderState.phone)
 
 
@@ -173,38 +153,29 @@ async def finish_order(message: Message, state: FSMContext, bot: Bot):
     user_last_order_time[user_id] = now
     user_active_order[user_id] = order_id
 
-    await message.answer("Замовлення створено", reply_markup=main_menu())
+    await message.answer("✅ Замовлення створено", reply_markup=main_menu())
     await state.clear()
 
-# ---------------- GLOBAL CANCEL CHECK ----------------
-@router.message(F.text == "Скасувати замовлення")
-async def cancel_without_active_order(message: Message, state: FSMContext):
-    current_state = await state.get_state()
-    if current_state:
-        await state.clear()
-        await message.answer(
-            "❌ Замовлення скасовано",
-            reply_markup=main_menu()
-        )
-    else:
-        await message.answer(
-            "У вас немає активного замовлення",
-            reply_markup=main_menu()
-        )
 
 # ---------------- CANCEL ORDER FROM MENU ----------------
 @router.message(F.text == "Скасувати замовлення")
 async def cancel_order_from_menu(message: Message, bot: Bot):
     user_id = message.from_user.id
-
     order_id = user_active_order.get(user_id)
+
     if not order_id:
-        await message.answer("У вас немає активних замовлень", reply_markup=main_menu())
+        await message.answer(
+            "❌ У вас немає активних замовлень",
+            reply_markup=main_menu()
+        )
         return
 
     order = await get_order(order_id)
     if not order:
-        await message.answer("Замовлення не знайдено", reply_markup=main_menu())
+        await message.answer(
+            "Замовлення не знайдено",
+            reply_markup=main_menu()
+        )
         return
 
     await update_order(order_id, "cancelled")
@@ -215,12 +186,14 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
         reply_markup=main_menu()
     )
 
+    # Уведомление водителя
     if order.get("driver_id"):
         await bot.send_message(
             order["driver_id"],
             f"❌ Замовлення №{order_id} було скасовано пасажиром"
         )
 
+    # Обновление сообщения в группе
     if order.get("message_id"):
         try:
             await bot.edit_message_text(
@@ -247,17 +220,13 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("Замовлення вже взято")
         return
 
-    # Обновляем статус заказа
     await update_order(order_id, "taken", callback.from_user.id)
 
-    # Нормализация номера клиента
-    client_phone = order["phone"]
-    client_phone_clean = normalize_phone(client_phone)
-    client_phone_html = f'<a href="tel:{client_phone_clean}">{client_phone}</a>'
+    client_phone_html = phone_to_html(order["phone"])
 
-    # Формируем обновлённый текст для группы
     group_text = (
         f"<b>Замовлення #{order_id}</b>\n"
+        f"👤 Клієнт: {order['username']}\n"
         f"📞 Телефон: {client_phone_html}\n"
         f"📍 Від: {order['from_loc']}\n"
         f"🏁 До: {order['to_loc']}\n"
@@ -265,18 +234,14 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         f"<b>Статус: прийнято водієм</b>"
     )
 
-    # Обновляем сообщение в группе
     await callback.message.edit_text(
         group_text,
         reply_markup=arrived_kb(order_id),
         parse_mode="HTML"
     )
 
-    # Нормализация номера водителя
-    driver_phone_clean = normalize_phone(driver["phone"])
-    driver_phone_html = f'<a href="tel:{driver_phone_clean}">{driver["phone"]}</a>'
+    driver_phone_html = phone_to_html(driver["phone"])
 
-    # Сообщение пассажиру с информацией о водителе
     driver_text = (
         "<b>🚖 Ваше замовлення прийнято водієм</b>\n\n"
         f"👨‍✈️ Водій: {driver.get('username', 'Невідомо')}\n"
@@ -294,7 +259,7 @@ async def take_order(callback: CallbackQuery, bot: Bot):
     await callback.answer("Замовлення прийнято")
 
 
-# ---------------- CANCEL ORDER ----------------
+# ---------------- CANCEL ORDER (CALLBACK) ----------------
 @router.callback_query(F.data.startswith("cancel_"))
 async def cancel_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
