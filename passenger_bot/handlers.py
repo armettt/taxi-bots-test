@@ -241,22 +241,22 @@ async def take_order(callback: CallbackQuery, bot: Bot):
     client_phone_html = phone_to_html(order["phone"])
 
     # ---------------- ДАННЫЕ ВОДИТЕЛЯ ----------------
-driver_username = driver.get("username") or callback.from_user.full_name
-driver_phone = driver.get("phone")
-driver_brand = driver.get("brand", "")
-driver_model = driver.get("model", "")
-driver_color = driver.get("color", "")
-driver_plate = driver.get("plate", "")
+    driver_username = driver.get("username") or callback.from_user.full_name
+    driver_phone = driver.get("phone")
+    driver_brand = driver.get("brand", "")
+    driver_model = driver.get("model", "")
+    driver_color = driver.get("color", "")
+    driver_plate = driver.get("plate", "")
 
-# Нормализация телефона для кликабельности
-if driver_phone:
-    driver_phone = normalize_phone(driver_phone)
-    driver_phone_html = phone_to_html(driver_phone)
-else:
-    driver_phone_html = "Не вказано"
+    # Нормализация телефона для кликабельности
+    if driver_phone:
+        driver_phone = normalize_phone(driver_phone)
+        driver_phone_html = phone_to_html(driver_phone)
+    else:
+        driver_phone_html = "Не вказано"
 
-car_info = " ".join(filter(None, [driver_brand, driver_model])).strip()
-car_full_info = f"{car_info} ({driver_color})" if driver_color else car_info
+    car_info = " ".join(filter(None, [driver_brand, driver_model])).strip()
+    car_full_info = f"{car_info} ({driver_color})" if driver_color else car_info
 
     # ---------------- ОБНОВЛЕНИЕ СООБЩЕНИЯ В ГРУППЕ ----------------
     group_text = (
