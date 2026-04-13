@@ -313,37 +313,37 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
     client_id = order["client_id"]
     driver_id = order.get("driver_id")
 
-    # Нельзя отменить завершённый или уже отменённый заказ
+    # уже завершено
     if order["status"] in ("completed", "cancelled"):
-        await callback.answer(
-            "Замовлення вже завершено",
-            show_alert=True
-        )
+        await callback.answer("Замовлення вже завершено", show_alert=True)
         return
 
-    # Если заказ ожидает — отменить может только пассажир
-    if order["status"] == "waiting" and user_id != client_id:
-        await callback.answer(
-            "Тільки пасажир може скасувати це замовлення",
-            show_alert=True
-        )
+    # ---------------- WAITING ----------------
+    # водитель МОЖЕТ отменить
+    if order["status"] == "waiting":
+        allowed = True  # любой водитель или клиент
+
+    # ---------------- TAKEN / ARRIVED ----------------
+    elif order["status"] in ("taken", "arrived"):
+        allowed = (user_id == client_id) or (user_id == driver_id)
+
+    else:
+        allowed = False
+
+    if not allowed:
+        await callback.answer("Ви не можете скасувати це замовлення", show_alert=True)
         return
 
-    # Если заказ принят — отменить может пассажир или назначенный водитель
-    if order["status"] in ("taken", "arrived"):
-        if user_id not in (client_id, driver_id):
-            await callback.answer(
-                "Ви не можете скасувати це замовлення",
-                show_alert=True
-            )
-            return
+    # определить кто отменил
+    if user_id == client_id:
+        cancelled_by = "пасажиром"
+    elif user_id == driver_id:
+        cancelled_by = "водієм"
+    else:
+        cancelled_by = "водієм"
 
-    # Обновляем статус
     await update_order(order_id, "cancelled")
 
-    cancelled_by = "пасажиром" if user_id == client_id else "водієм"
-
-    # Обновляем сообщение в группе
     try:
         if order.get("message_id"):
             await bot.edit_message_text(
@@ -352,22 +352,17 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
                 text=f"❌ Замовлення #{order_id} скасовано {cancelled_by}",
                 parse_mode="HTML"
             )
-        else:
-            await callback.message.edit_text(
-                f"❌ Замовлення #{order_id} скасовано {cancelled_by}",
-                parse_mode="HTML"
-            )
-    except Exception:
+    except:
         pass
 
-    # Уведомление пассажира (всегда)
+    # пассажиру всегда
     await bot.send_message(
         client_id,
         f"❌ Ваше замовлення №{order_id} скасовано"
     )
 
-    # Уведомление водителя
-    if driver_id and driver_id != client_id:
+    # водителю если есть
+    if driver_id:
         await bot.send_message(
             driver_id,
             f"❌ Замовлення №{order_id} скасовано"
