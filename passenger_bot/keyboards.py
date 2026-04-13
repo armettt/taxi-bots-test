@@ -24,7 +24,11 @@ def contact_kb():
 
 # ---------------- DRIVER TAKE ORDER ----------------
 def take_order_kb(order_id: int) -> InlineKeyboardMarkup:
-    """Клавиатура для водителей — только принятие заказа."""
+    """
+    Клавіатура для водіїв:
+    - Взяти замовлення
+    - Скасувати замовлення (тільки пасажиром)
+    """
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -32,13 +36,19 @@ def take_order_kb(order_id: int) -> InlineKeyboardMarkup:
                     text="🚕 Взяти замовлення",
                     callback_data=f"take_{order_id}"
                 )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Скасувати замовлення",
+                    callback_data=f"cancel_{order_id}"
+                )
             ]
         ]
     )
 
 
 # ---------------- ARRIVED ----------------
-def arrived_kb(order_id):
+def arrived_kb(order_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -58,7 +68,7 @@ def arrived_kb(order_id):
 
 
 # ---------------- COMPLETE ----------------
-def complete_kb(order_id):
+def complete_kb(order_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
