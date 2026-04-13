@@ -233,15 +233,20 @@ async def take_order(callback: CallbackQuery, bot: Bot):
     order = await get_order(order_id)
     client_phone_html = phone_to_html(order["phone"])
 
-    # Формируем данные водителя
-    driver_name = driver.get("name") or callback.from_user.full_name
-    driver_phone = driver.get("phone", "Невідомо")
-    driver_car = driver.get("car", "Невідомо")
-    driver_plate = driver.get("car_number", "Невідомо")
+    # ---------------- ДАННЫЕ ВОДИТЕЛЯ ----------------
+    driver_username = driver.get("username") or callback.from_user.full_name
+    driver_phone = driver.get("phone")
+    driver_brand = driver.get("brand", "")
+    driver_model = driver.get("model", "")
+    driver_color = driver.get("color", "")
+    driver_plate = driver.get("plate", "")
 
     driver_phone_html = phone_to_html(driver_phone)
 
-    # Обновляем сообщение в группе
+    car_info = " ".join(filter(None, [driver_brand, driver_model])).strip()
+    car_full_info = f"{car_info} ({driver_color})" if driver_color else car_info
+
+    # ---------------- ОБНОВЛЕНИЕ СООБЩЕНИЯ В ГРУППЕ ----------------
     group_text = (
         f"<b>Замовлення #{order_id}</b>\n"
         f"👤 Клієнт: {order['username']}\n"
@@ -249,10 +254,10 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         f"📍 Від: {order['from_loc']}\n"
         f"🏁 До: {order['to_loc']}\n"
         f"💬 Коментар: {order['comment']}\n\n"
-        f"<b>🚖 Водій прийняв замовлення</b>\n"
-        f"👨‍✈️ Водій: {driver_name}\n"
+        f"<b>🚖 Замовлення прийнято водієм</b>\n"
+        f"👨‍✈️ Водій: {driver_username}\n"
         f"📞 Телефон: {driver_phone_html}\n"
-        f"🚗 Авто: {driver_car}\n"
+        f"🚗 Авто: {car_full_info}\n"
         f"🔢 Номер: {driver_plate}"
     )
 
@@ -262,12 +267,13 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         parse_mode="HTML"
     )
 
-    # Уведомление пассажира с данными водителя
+    # ---------------- УВЕДОМЛЕНИЕ ПАССАЖИРА ----------------
     client_text = (
         f"🚖 <b>Ваше замовлення прийнято!</b>\n\n"
-        f"👨‍✈️ Водій: {driver_name}\n"
+        f"👨‍✈️ Водій: {driver_username}\n"
         f"📞 Телефон: {driver_phone_html}\n"
-        f"🚗 Авто: {driver_car}\n"
+        f"🚗 Авто: {car_full_info}\n"
+        f"🎨 Колір: {driver_color}\n"
         f"🔢 Номер: {driver_plate}"
     )
 
@@ -275,6 +281,14 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         order["client_id"],
         client_text,
         parse_mode="HTML"
+    )
+
+    # ---------------- УВЕДОМЛЕНИЕ ВОДИТЕЛЯ ----------------
+    await bot.send_message(
+        driver_id,
+        f"✅ Ви прийняли замовлення №{order_id}\n"
+        f"📍 Від: {order['from_loc']}\n"
+        f"🏁 До: {order['to_loc']}"
     )
 
     await callback.answer("Ви взяли замовлення")
