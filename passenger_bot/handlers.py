@@ -217,19 +217,31 @@ async def take_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
     driver_id = callback.from_user.id
 
+    # Проверяем регистрацию водителя
     driver = await get_driver(driver_id)
     if not driver:
-        await callback.answer("Ви не зареєстровані", show_alert=True)
+        await callback.answer("Ви не зареєстровані як водій", show_alert=True)
         return
 
+    # Атомарное принятие заказа
     result = await try_take_order(order_id, driver_id)
     if not result:
-        await callback.answer("Замовлення вже взято", show_alert=True)
+        await callback.answer("Замовлення вже взято іншим водієм", show_alert=True)
         return
 
+    # Получаем данные заказа
     order = await get_order(order_id)
     client_phone_html = phone_to_html(order["phone"])
 
+    # Формируем данные водителя
+    driver_name = driver.get("name") or callback.from_user.full_name
+    driver_phone = driver.get("phone", "Невідомо")
+    driver_car = driver.get("car", "Невідомо")
+    driver_plate = driver.get("car_number", "Невідомо")
+
+    driver_phone_html = phone_to_html(driver_phone)
+
+    # Обновляем сообщение в группе
     group_text = (
         f"<b>Замовлення #{order_id}</b>\n"
         f"👤 Клієнт: {order['username']}\n"
@@ -237,7 +249,11 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         f"📍 Від: {order['from_loc']}\n"
         f"🏁 До: {order['to_loc']}\n"
         f"💬 Коментар: {order['comment']}\n\n"
-        f"<b>Статус: прийнято водієм</b>"
+        f"<b>🚖 Водій прийняв замовлення</b>\n"
+        f"👨‍✈️ Водій: {driver_name}\n"
+        f"📞 Телефон: {driver_phone_html}\n"
+        f"🚗 Авто: {driver_car}\n"
+        f"🔢 Номер: {driver_plate}"
     )
 
     await callback.message.edit_text(
@@ -246,13 +262,22 @@ async def take_order(callback: CallbackQuery, bot: Bot):
         parse_mode="HTML"
     )
 
-    await bot.send_message(
-        order["client_id"],
-        "🚖 Ваше замовлення прийнято водієм"
+    # Уведомление пассажира с данными водителя
+    client_text = (
+        f"🚖 <b>Ваше замовлення прийнято!</b>\n\n"
+        f"👨‍✈️ Водій: {driver_name}\n"
+        f"📞 Телефон: {driver_phone_html}\n"
+        f"🚗 Авто: {driver_car}\n"
+        f"🔢 Номер: {driver_plate}"
     )
 
-    await callback.answer()
+    await bot.send_message(
+        order["client_id"],
+        client_text,
+        parse_mode="HTML"
+    )
 
+    await callback.answer("Ви взяли замовлення")
 
 # ---------------- CANCEL CALLBACK (SECURE) ----------------
 @router.callback_query(F.data.startswith("cancel_"))
