@@ -254,7 +254,7 @@ async def take_order(callback: CallbackQuery, bot: Bot):
     await callback.answer()
 
 
-# ---------------- CANCEL CALLBACK (FIXED) ----------------
+# ---------------- CANCEL CALLBACK (SECURE) ----------------
 @router.callback_query(F.data.startswith("cancel_"))
 async def cancel_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
@@ -265,8 +265,8 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
         return
 
     user_id = callback.from_user.id
-    driver_id = order.get("driver_id")
     client_id = order["client_id"]
+    driver_id = order.get("driver_id")
 
     # Нельзя отменить завершённый или уже отменённый заказ
     if order["status"] in ("completed", "cancelled"):
@@ -276,40 +276,54 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
         )
         return
 
-    # 🚫 Защита: только клиент или назначенный водитель
-    if user_id != client_id and user_id != driver_id:
+    # ❌ Если заказ ещё не взят — отменять может только клиент
+    if order["status"] == "waiting" and user_id != client_id:
         await callback.answer(
-            "Ви не можете скасувати це замовлення",
+            "Тільки пасажир може скасувати це замовлення",
             show_alert=True
         )
         return
 
-    # Обновляем статус
+    # ❌ Если заказ взят — отменять может только назначенный водитель или клиент
+    if order["status"] in ("taken", "arrived"):
+        if user_id not in (client_id, driver_id):
+            await callback.answer(
+                "Ви не можете скасувати це замовлення",
+                show_alert=True
+            )
+            return
+
+    # Обновляем статус заказа
     await update_order(order_id, "cancelled")
 
-    # Обновляем сообщение в группе
-    cancel_text = f"❌ Замовлення #{order_id} скасовано"
-    if user_id == client_id:
-        cancel_text += " пасажиром"
-    else:
-        cancel_text += " водієм"
+    # Определяем, кто отменил заказ
+    cancelled_by = "пасажиром" if user_id == client_id else "водієм"
 
+    # Обновляем сообщение в группе
     try:
-        await callback.message.edit_text(
-            cancel_text,
-            parse_mode="HTML"
-        )
+        if order.get("message_id"):
+            await bot.edit_message_text(
+                chat_id=GROUP_ID,
+                message_id=order["message_id"],
+                text=f"❌ Замовлення #{order_id} скасовано {cancelled_by}",
+                parse_mode="HTML"
+            )
+        else:
+            await callback.message.edit_text(
+                f"❌ Замовлення #{order_id} скасовано {cancelled_by}",
+                parse_mode="HTML"
+            )
     except Exception:
         pass
 
-    # Уведомляем клиента (если отменил водитель)
+    # Уведомление пассажира
     if user_id != client_id:
         await bot.send_message(
             client_id,
             f"❌ Ваше замовлення №{order_id} скасовано"
         )
 
-    # Уведомляем водителя (если отменил клиент)
+    # Уведомление водителя
     if driver_id and user_id != driver_id:
         await bot.send_message(
             driver_id,
@@ -317,7 +331,6 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
         )
 
     await callback.answer("Замовлення скасовано")
-
 
 # ---------------- ARRIVED ----------------
 @router.callback_query(F.data.startswith("arrived_"))
