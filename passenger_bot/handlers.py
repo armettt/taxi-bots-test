@@ -183,9 +183,10 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
 
     order = await get_order(order["id"])
 
+    # Обновляем статус заказа
     await update_order(order["id"], "cancelled")
 
-    # 🔥 ОБНОВЛЯЕМ СООБЩЕНИЕ В ГРУППЕ
+    # Обновляем сообщение в группе
     if order.get("message_id"):
         try:
             await bot.edit_message_text(
@@ -194,21 +195,27 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
                 text=f"❌ Замовлення #{order['id']} скасовано пасажиром",
                 parse_mode="HTML"
             )
-        except:
+        except Exception:
             pass
 
-    # 🔥 ОТПРАВЛЯЕМ ТОЛЬКО ОДИН РАЗ
+    # Уведомление пассажира
+    await bot.send_message(
+        order["client_id"],
+        f"❌ Ваше замовлення №{order['id']} скасовано"
+    )
+
+    # Уведомление водителя
+    if order.get("driver_id"):
+        await bot.send_message(
+            order["driver_id"],
+            f"❌ Замовлення №{order['id']} скасовано пасажиром"
+        )
+
+    # Ответ пользователю
     await message.answer(
         f"❌ Замовлення №{order['id']} скасовано",
         reply_markup=main_menu()
     )
-
-    # водителю (если есть)
-    if order.get("driver_id"):
-        await bot.send_message(
-            order["driver_id"],
-            f"❌ Замовлення №{order['id']} скасовано"
-        )
 
 
 # ---------------- TAKE ORDER ----------------
@@ -315,7 +322,7 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
         )
         return
 
-    # ❌ Если заказ ещё не взят — отменять может только клиент
+    # Если заказ ожидает — отменить может только пассажир
     if order["status"] == "waiting" and user_id != client_id:
         await callback.answer(
             "Тільки пасажир може скасувати це замовлення",
@@ -323,7 +330,7 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
         )
         return
 
-    # ❌ Если заказ взят — отменять может только назначенный водитель или клиент
+    # Если заказ принят — отменить может пассажир или назначенный водитель
     if order["status"] in ("taken", "arrived"):
         if user_id not in (client_id, driver_id):
             await callback.answer(
@@ -332,10 +339,9 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
             )
             return
 
-    # Обновляем статус заказа
+    # Обновляем статус
     await update_order(order_id, "cancelled")
 
-    # Определяем, кто отменил заказ
     cancelled_by = "пасажиром" if user_id == client_id else "водієм"
 
     # Обновляем сообщение в группе
@@ -355,15 +361,14 @@ async def cancel_order(callback: CallbackQuery, bot: Bot):
     except Exception:
         pass
 
-    # Уведомление пассажира
-    if user_id != client_id:
-        await bot.send_message(
-            client_id,
-            f"❌ Ваше замовлення №{order_id} скасовано"
-        )
+    # Уведомление пассажира (всегда)
+    await bot.send_message(
+        client_id,
+        f"❌ Ваше замовлення №{order_id} скасовано"
+    )
 
     # Уведомление водителя
-    if driver_id and user_id != driver_id:
+    if driver_id and driver_id != client_id:
         await bot.send_message(
             driver_id,
             f"❌ Замовлення №{order_id} скасовано"
