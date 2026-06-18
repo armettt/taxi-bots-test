@@ -300,23 +300,26 @@ async def take_order(callback: CallbackQuery, bot: Bot):
 
     await callback.answer("Ви взяли замовлення")
 # ---------------- CANCEL CALLBACK (SECURE) ----------------
-@router.callback_query(F.data.startswith("cancel_"))
-async def cancel_order(callback: CallbackQuery, bot: Bot):
+@router.callback_query(F.data.startswith("pass_"))
+async def pass_order(callback: CallbackQuery, bot: Bot):
     order_id = int(callback.data.split("_")[1])
+
     order = await get_order(order_id)
 
     if not order:
         await callback.answer("Замовлення не знайдено", show_alert=True)
         return
 
-    user_id = callback.from_user.id
-    client_id = order["client_id"]
-    driver_id = order.get("driver_id")
-
-    # уже завершено
-    if order["status"] in ("completed", "cancelled"):
-        await callback.answer("Замовлення вже завершено", show_alert=True)
+    if order["status"] != "waiting":
+        await callback.answer(
+            "Замовлення вже прийняте",
+            show_alert=True
+        )
         return
+
+    await callback.answer(
+        "✅ Замовлення передано іншому водію"
+    )
 
     # ---------------- WAITING ----------------
     # водитель МОЖЕТ отменить
