@@ -36,16 +36,25 @@ async def create_order(client_id, phone, username, from_loc, to_loc, comment):
     return row["id"]
 
 
-async def update_order(order_id, status=None, driver_id=None, message_id=None):
-    await execute("""
-        UPDATE orders
-        SET
-            status = COALESCE($1, status),
-            driver_id = COALESCE($2, driver_id),
-            message_id = COALESCE($3, message_id)
-        WHERE id = $4
-    """, status, driver_id, message_id, order_id)
-
+async def update_order(order_id, status=None, driver_id="__keep__", message_id=None):
+    if driver_id == "__keep__":
+        await execute("""
+            UPDATE orders
+            SET
+                status = COALESCE($1, status),
+                message_id = COALESCE($2, message_id)
+            WHERE id = $3
+        """, status, message_id, order_id)
+    else:
+        await execute("""
+            UPDATE orders
+            SET
+                status = COALESCE($1, status),
+                driver_id = $2,
+                message_id = COALESCE($3, message_id)
+            WHERE id = $4
+        """, status, driver_id, message_id, order_id)
+        
 
 async def get_order(order_id):
     return await fetchrow(
