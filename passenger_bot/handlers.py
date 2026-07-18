@@ -183,10 +183,10 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
 
     order = await get_order(order["id"])
 
-    # Обновляем статус заказа
+    
     await update_order(order["id"], "cancelled")
 
-    # Обновляем сообщение в группе
+    
     if order.get("message_id"):
         try:
             await bot.edit_message_text(
@@ -198,20 +198,20 @@ async def cancel_order_from_menu(message: Message, bot: Bot):
         except Exception:
             pass
 
-    # Уведомление пассажира
+    
     await bot.send_message(
         order["client_id"],
         f"❌ Ваше замовлення №{order['id']} скасовано"
     )
 
-    # Уведомление водителя
+    
     if order.get("driver_id"):
         await bot.send_message(
             order["driver_id"],
             f"❌ Замовлення №{order['id']} скасовано пасажиром"
         )
 
-    # Ответ пользователю
+    
     await message.answer(
         f"❌ Замовлення №{order['id']} скасовано",
         reply_markup=main_menu()
@@ -322,9 +322,9 @@ async def pass_order(callback: CallbackQuery, bot: Bot):
     )
 
     # ---------------- WAITING ----------------
-    # водитель МОЖЕТ отменить
+    
     if order["status"] == "waiting":
-        allowed = True  # любой водитель или клиент
+        allowed = True  
 
     # ---------------- TAKEN / ARRIVED ----------------
     elif order["status"] in ("taken", "arrived"):
@@ -337,7 +337,7 @@ async def pass_order(callback: CallbackQuery, bot: Bot):
         await callback.answer("Ви не можете скасувати це замовлення", show_alert=True)
         return
 
-    # определить кто отменил
+    
     if user_id == client_id:
         cancelled_by = "пасажиром"
     elif user_id == driver_id:
@@ -358,13 +358,13 @@ async def pass_order(callback: CallbackQuery, bot: Bot):
     except:
         pass
 
-    # пассажиру всегда
+    
     await bot.send_message(
         client_id,
         f"❌ Ваше замовлення №{order_id} скасовано"
     )
 
-    # водителю если есть
+    
     if driver_id:
         await bot.send_message(
             driver_id,
