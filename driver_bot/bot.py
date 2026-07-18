@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 async def main():
-    # 🔥 ВАЖНО: инициализация БД
+    # initialization DB
     await init_db()
 
     bot = Bot(
