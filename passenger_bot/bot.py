@@ -19,28 +19,28 @@ logging.basicConfig(
 
 
 async def main():
-    # Инициализация базы данных
+    
     await init_db()
 
-    # Инициализация бота
+    
     bot = Bot(
         token=BOT_TOKEN,
         default=DefaultBotProperties(parse_mode="HTML")
     )
 
-    # Инициализация диспетчера
+    
     dp = Dispatcher(storage=MemoryStorage())
 
-    # Подключение middleware
+    # middleware
     dp.message.middleware(LoggingMiddleware())
     dp.callback_query.middleware(LoggingMiddleware())
 
-    # Подключение роутеров
+    
     dp.include_router(router)
 
     logging.info("Passenger bot started successfully ✅")
 
-    # Запуск polling
+    #  polling
     await dp.start_polling(bot)
 
 
